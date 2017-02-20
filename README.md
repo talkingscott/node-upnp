@@ -1,2 +1,3 @@
 # node-upnp
-Minimal UPnP explorer
+
+Minimal UPnP explorer (initial development)
