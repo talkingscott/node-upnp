@@ -1,0 +1,17 @@
+{
+  "name": "node-upnp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["UPnP", "DLNA"],
+  "author": "talkingscott@gmail.com",
+  "license": "ISC",
+  "private": true,
+  "dependencies": {
+    "request": "^2.79.0",
+    "xmldom": "^0.1.27"
+  }
+}
