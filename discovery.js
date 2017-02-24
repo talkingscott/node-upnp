@@ -149,7 +149,17 @@ class DiscoveryMessageStore {
   }
 
   /**
+   * Clears the message store.
+   */
+  clear() {
+    this._messages = [];
+  }
+
+  /**
    * Updates the store with a message.
+   *
+   * TODO: rather than always adding, update an existing
+   * message for the service if it is already in the store.
    *
    * @param discoveryMessage {DiscoveryMessage} The message.
    */
@@ -176,7 +186,7 @@ class DiscoveryMessageStore {
  * Manages discovery interaction with devices, maintaining
  * a store of discovery messages.
  */
-class DiscoveryServer {
+class DiscoveryService {
   constructor() {
     this._messageStore = new DiscoveryMessageStore();
     this._socket = null;
@@ -196,6 +206,21 @@ class DiscoveryServer {
   }
 
   /**
+   * Gets the locations from all discovery messages.
+   *
+   * @returns {Set} The locations from all discovery messages.
+   */
+  getLocations() {
+    let locations = new Set();
+    this.messageStore.messages.forEach((message) => {
+      message.LOCATION.forEach((header) => {
+        locations.add(header.value);
+      });
+    });
+    return locations;
+  }
+
+  /**
    * Sends a discovery search message.
    *
    * @param callback {Function} Called when send is complete.
@@ -204,6 +229,7 @@ class DiscoveryServer {
     if (this._socket === null) {
       throw new Error('Server not started');
     }
+    this._messageStore.clear();
     let searchRequest = 'M-SEARCH * HTTP/1.1\r\n' +
       `HOST: ${DISCOVERY_MULTICAST_ADDRESS}:${DISCOVERY_PORT}\r\n` +
       'MAN: \"ssdp:discover\"\r\n' +
@@ -218,11 +244,11 @@ class DiscoveryServer {
   }
 
   /**
-   * Starts the discovery server.
+   * Starts the discovery service.
    *
    * @param callback {Function} Called when the server starts listening.
    */
-  startServer(callback) {
+  startService(callback) {
     if (this._socket !== null) {
       throw new Error('Server already started');
     }
@@ -255,4 +281,4 @@ class DiscoveryServer {
   }
 }
 
-module.exports.DiscoveryServer = DiscoveryServer;
+module.exports.DiscoveryService = DiscoveryService;

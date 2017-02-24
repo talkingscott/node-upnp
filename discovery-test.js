@@ -19,14 +19,14 @@ function findContentDirectories(discoveryServer) {
   });
 }
 
-const discoveryServer = new discovery.DiscoveryServer();
-discoveryServer.startServer((err, address) => {
+const discoveryService = new discovery.DiscoveryService();
+discoveryService.startService((err, address) => {
   if (err) {
     console.log(`discovery server error:\n${err.stack}`);
   } else {
     console.log(`discovery server listening ${address.address}:${address.port}`);
     console.log('start search in 5 seconds');
-    setTimeout(discoveryServer.startSearch.bind(discoveryServer), 5000, (err) => {
+    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, (err) => {
       if (err) {
         console.log(`search error:\n${err.stack}`);
       } else {
@@ -34,8 +34,8 @@ discoveryServer.startServer((err, address) => {
         console.log('print results in 5 seconds');
         setTimeout(() => {
           console.log('content of discovery message store');
-          console.log(util.inspect(discoveryServer.messageStore, {depth: 5}));
-          findContentDirectories(discoveryServer);
+          console.log(util.inspect(discoveryService.messageStore, {depth: 5}));
+          findContentDirectories(discoveryService);
         }, 5000);
       }
     });

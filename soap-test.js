@@ -1,8 +1,18 @@
+/**
+ * Test of UPnP Control using SOAP.
+ *
+ * Based on:
+ *
+ * http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
+ * http://www.upnp.org/specs/av/UPnP-av-ContentDirectory-v1-Service.pdf
+ */
 'use strict';
 
 const util = require('util');
 const request = require('request');
 const DOMParser = require('xmldom').DOMParser;
+const parseObjectFromElement = require('./simplexml').parseObjectFromElement;
+const parseObjectFromXml = require('./simplexml').parseObjectFromXml;
 
 function getSortCapabilities() {
   const body = '<?xml version="1.0"?>\n' +
@@ -84,7 +94,7 @@ function searchContainer(containerId) {
       }
     } else {
       if (soapResponse.Result) {
-        soapResponse.Result = parseXmlObject(soapResponse.Result);
+        soapResponse.Result = parseObjectFromXml(soapResponse.Result);
       }
       console.log(util.inspect(soapResponse, {depth: 5}));
     }
@@ -169,59 +179,18 @@ function parseBody(body, methodName, methodNs) {
     return body;
   }
   let responses = bodies.item(0).getElementsByTagNameNS(methodNs, `${methodName}Response`);
-  if (responses.length == 0) {
+  if (responses.length === 0) {
     let faults = bodies.item(0).getElementsByTagNameNS('http://schemas.xmlsoap.org/soap/envelope/', 'Fault');
     if (faults.length != 1) {
       return body;
     }
-    return parseObject(faults.item(0));
+    return parseObjectFromElement(faults.item(0));
   }
   if (responses.length != 1) {
     return body;
   }
   
-  return parseObject(responses.item(0));
-}
-
-function parseXmlObject(xml) {
-  let doc = new DOMParser().parseFromString(xml, 'text/xml');
-  console.log(util.inspect(doc.documentElement, {depth:6}));
-  return parseObject(doc.documentElement);
-}
-
-function parseObject(element) {
-  let children = element.childNodes;
-  let elementCount = 0;
-  let obj = {};
-  let txt = '';
-  for (var c = 0; c < children.length; c++) {
-    let child = children.item(c);
-    if (child.localName) {
-      elementCount += 1;
-      // TODO: either prefix or namespaceURI to disambiguate
-      if (obj[child.localName]) {
-        if (!Array.isArray(obj[child.localName])) {
-          obj[child.localName] = [obj[child.localName]];
-        }
-        obj[child.localName].push(parseObject(child));
-      } else {
-        obj[child.localName] = parseObject(child);
-      }
-    } else if (child.data) {
-      txt += child.data.trim();
-    }
-  }
-  if (elementCount || element.attributes.length) {
-    if (txt) {
-      obj['$'] = txt;
-    }
-    for (var a = 0; a < element.attributes.length; a++) {
-      // TODO: name has prefix
-      obj[`@${element.attributes.item(a).name}`] = element.attributes.item(a).value;
-    }
-    return obj;
-  }
-  return txt;
+  return parseObjectFromElement(responses.item(0));
 }
 
 browseObject('0');

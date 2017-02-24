@@ -5,85 +5,18 @@
  */
 'use strict';
 
-const os = require('os');
 const util = require('util');
-const request = require('request');
-const discovery = require('./discovery');
+const DiscoveryService = require('./discovery').DiscoveryService;
+const findServices = require('./description').findServices;
 
-const PRODUCT = 'node-upnp';
-const PRODUCT_VERSION = '1.0';
-
-function getDescription(uri, callback) {
-  const options = {
-    uri: uri,
-    method: 'GET',
-    headers: {
-      'user-agent': `${os.platform()}/${os.release()} UPnP/1.1 ${PRODUCT}/${PRODUCT_VERSION}`
-    }
-  };
-  
-  request(options, (err, response, body) => {
-    callback(err, response, body);
-  });
-}
-
-/**
- * Find (and print) content directories in the discovery message store.
- */
-function findContentDirectories(discoveryServer) {
-  let messages = discoveryServer.messageStore.findByST('urn:schemas-upnp-org:service:ContentDirectory:1');
-  console.log('findContentDirectories');
-  messages.forEach((message) => {
-    message.LOCATION.forEach((header) => {
-      getDescription(header.value, (err, response, body) => {
-        console.log(message);
-        if (err) {
-          console.error(`Error getting description: ${err}`);
-        } else if (response.statusCode != 200) {
-          console.log(`Response status code not 200: ${response.statusCode}`);
-          if (body) {
-            console.log(body);
-          }
-        } else {
-          console.log(body);
-        }
-      });
-    });
-  });
-}
-
-function findAllDescriptions(discoveryServer) {
-  let locations = new Set();
-  discoveryServer.messageStore.messages.forEach((message) => {
-    message.LOCATION.forEach((header) => {
-      locations.add(header.value);
-    });
-  });
-  locations.forEach((location) => {
-    getDescription(location, (err, response, body) => {
-      console.log(location);
-      if (err) {
-        console.error(`Error getting description: ${err}`);
-      } else if (response.statusCode != 200) {
-        console.log(`Response status code not 200: ${response.statusCode}`);
-        if (body) {
-          console.log(body);
-        }
-      } else {
-        console.log(body);
-      }
-    });
-  });
-}
-
-const discoveryServer = new discovery.DiscoveryServer();
-discoveryServer.startServer((err, address) => {
+const discoveryService = new DiscoveryService();
+discoveryService.startService((err, address) => {
   if (err) {
-    console.log(`discovery server error:\n${err.stack}`);
+    console.log(`discovery service error:\n${err.stack}`);
   } else {
-    console.log(`discovery server listening ${address.address}:${address.port}`);
+    console.log(`discovery service listening ${address.address}:${address.port}`);
     console.log('start search in 5 seconds');
-    setTimeout(discoveryServer.startSearch.bind(discoveryServer), 5000, (err) => {
+    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, (err) => {
       if (err) {
         console.log(`search error:\n${err.stack}`);
       } else {
@@ -91,8 +24,15 @@ discoveryServer.startServer((err, address) => {
         console.log('print results in 5 seconds');
         setTimeout(() => {
           console.log('content of discovery message store');
-          console.log(util.inspect(discoveryServer.messageStore, {depth: 5}));
-          findAllDescriptions(discoveryServer);
+          console.log(util.inspect(discoveryService.messageStore, {depth: 5}));
+          findServices(discoveryService, 'urn:schemas-upnp-org:device:MediaServer:1', 'urn:schemas-upnp-org:service:ContentDirectory:1', (errors, services) => {
+            errors.forEach((error) => {
+              console.log(util.inspect(error, {depth:8}));
+            });
+            services.forEach((service) => {
+              console.log(util.inspect(service, {depth:8}));
+            });
+          });
         }, 5000);
       }
     });
