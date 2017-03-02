@@ -12,6 +12,11 @@ const parseObjectFromXml = require('./simplexml').parseObjectFromXml;
 const PRODUCT = 'node-upnp';
 const PRODUCT_VERSION = '1.0';
 
+/**
+ * Gets a (raw) description.
+ *
+ * @private
+ */
 function getDescription(uri, callback) {
   const options = {
     uri: uri,
@@ -26,6 +31,9 @@ function getDescription(uri, callback) {
   });
 }
 
+/**
+ * An error that occurred trying to obtain a (device) description.
+ */
 class DescriptionError {
   constructor(location, error) {
     this._location = location;
@@ -41,7 +49,16 @@ class DescriptionError {
   }
 }
 
-class Description {
+/**
+ * A device description.
+ */
+class DeviceDescription {
+  /**
+   * Creates a device description.
+   *
+   * @param location {String} The URL from which the description was read.
+   * @param description {Object} The description XML parsed to an object.
+   */
   constructor(location, description) {
     this._location = location;
     this._description = description;
@@ -56,7 +73,18 @@ class Description {
   }
 }
 
-class Service {
+/**
+ * A service description from within a
+ * device description.
+ */
+class DeviceServiceDescription {
+  /**
+   * Creates a service description.
+   *
+   * @param location {String} The URL from which the device description was read.
+   * @param friendlyName {String} The friendly name of the device.
+   * @param service {Object} The parsed XML of the service description.
+   */
   constructor(location, friendlyName, service) {
     this._location = location;
     this._friendlyName = friendlyName;
@@ -76,33 +104,54 @@ class Service {
   }
 }
 
-function findAllDescriptions(discoveryServer, callback) {
+/**
+ * Finds all device/service descriptions.
+ *
+ * This does not issue a search on the discovery service.  Maybe it
+ * should, but for now it is the responsibility of the caller to have
+ * already issued a compatible search.  Otherwise, we rely exclusively
+ * on what has been advertised since we started.
+ *
+ * @param discoveryService {DiscoveryService} The discovery service.
+ * @param callback {Function} Receives the descriptions.
+ */
+function findAllDeviceDescriptions(discoveryService, callback) {
   let errors = [];
   let descriptions = [];
-  discoveryServer.getLocations().forEach((location) => {
+  discoveryService.getLocations().forEach((location) => {
     getDescription(location, (err, response, body) => {
       if (err) {
         errors.push(new DescriptionError(location, err, body));
       } else if (response.statusCode != 200) {
         errors.push(new DescriptionError(location, `statusCode: ${response.StatusCode} body: ${body}`));
       } else {
-        descriptions.push(new Description(location, parseObjectFromXml(body)));
+        descriptions.push(new DeviceDescription(location, parseObjectFromXml(body)));
       }
-      if ((descriptions.length + errors.length) == discoveryServer.getLocations().size) {
+      if ((descriptions.length + errors.length) == discoveryService.getLocations().size) {
         callback(errors, descriptions);
       }
     });
   });
 }
 
-function findServices(discoveryService, deviceType, serviceType, callback) {
-  findAllDescriptions(discoveryService, (errors, descriptions) => {
+/**
+ * Finds all services for a device and service type.
+ *
+ * This does not issue a search on the discovery service.  Maybe it
+ * should, but for now it is the responsibility of the caller to have
+ * already issued a compatible search.
+ *
+ * @param discoveryService {DiscoveryService} The discovery service.
+ * @param callback {Function} Receives the services.
+ */
+function findDeviceServices(discoveryService, deviceType, serviceType, callback) {
+  findAllDeviceDescriptions(discoveryService, (errors, descriptions) => {
     let matchingServices = [];
     descriptions.forEach((description) => {
       if (description.description.device.deviceType == deviceType) {
         description.description.device.serviceList.service.forEach((service) => {
           if (service.serviceType == serviceType) {
-            matchingServices.push(new Service(description.location, description.description.device.friendlyName, service));
+            matchingServices.push(new DeviceServiceDescription(description.location, description.description.device.friendlyName, service));
           }
         });
       }
@@ -111,5 +160,5 @@ function findServices(discoveryService, deviceType, serviceType, callback) {
   });
 }
 
-module.exports.findAllDescriptions = findAllDescriptions;
-module.exports.findServices = findServices;
+module.exports.findAllDeviceDescriptions = findAllDeviceDescriptions;
+module.exports.findDeviceServices = findDeviceServices;

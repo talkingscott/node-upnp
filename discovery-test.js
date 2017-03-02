@@ -26,7 +26,7 @@ discoveryService.startService((err, address) => {
   } else {
     console.log(`discovery server listening ${address.address}:${address.port}`);
     console.log('start search in 5 seconds');
-    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, (err) => {
+    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, 'ssdp:all', (err) => {
       if (err) {
         console.log(`search error:\n${err.stack}`);
       } else {

@@ -7,6 +7,7 @@
 
 const dgram = require('dgram');
 const os = require('os');
+const util = require('util');
 
 const DISCOVERY_MULTICAST_ADDRESS = '239.255.255.250';
 const DISCOVERY_PORT = 1900;
@@ -34,6 +35,9 @@ class DiscoveryMessageHeader {
 
 /**
  * A message sent by a device for discovery.
+ *
+ * Our treatment of the message is intentionally permissive.  We
+ * allow any status line and any headers, including duplicates.
  */
 class DiscoveryMessage {
   /**
@@ -45,10 +49,61 @@ class DiscoveryMessage {
    * @param headers {Array} The headers.
    */
   constructor(remoteAddress, timestamp, statusLine, headers) {
-    this.remoteAddress = remoteAddress;
-    this.timestamp = timestamp;
-    this.statusLine = statusLine;
-    this.headers = headers;
+    this._remoteAddress = remoteAddress;
+    this._timestamp = timestamp;
+    this._statusLine = statusLine;
+    this._headers = headers;
+  }
+
+  get remoteAddress() {
+    return this._remoteAddress;
+  }
+
+  get timestamp() {
+    return this._timestamp;
+  }
+
+  get statusLine() {
+    return this._statusLine;
+  }
+
+  get headers() {
+    return this._headers;
+  }
+
+  get isNotify() {
+    return this._statusLine[0] == 'NOTIFY';
+  }
+
+  get isSearchResponse() {
+    return this._statusLine[0] == 'HTTP/1.1';
+  }
+
+  /**
+   * Gets whether this message is expired.
+   */
+  get isExpired() {
+    let cacheControl = this._getFirstHeaderNamed('CACHE-CONTROL');
+    if (!cacheControl) {
+      return false;
+    }
+    let idx = cacheControl.value.indexOf('max-age=');
+    if (idx === -1) {
+      return false;
+    }
+    let maxAge = parseInt(cacheControl.value.substring(idx + 'max-age='.length));
+    //console.log(`maxAge is ${maxAge} from ${util.inspect(cacheControl)}`);
+
+    let date = this._getFirstHeaderNamed('DATE');
+    let messageDate;
+    if (!date) {
+      messageDate = this.timestamp;
+    } else {
+      messageDate = new Date(date.value);
+    }
+    //console.log(`messageDate is ${messageDate} from ${util.inspect(date)}`);
+
+    return (messageDate.getTime() + maxAge*1000) < Date.now();
   }
 
   /**
@@ -61,6 +116,51 @@ class DiscoveryMessage {
   }
 
   /**
+   * Gets the first LOCATION header, if any.
+   *
+   * @returns {DiscoveryMessageHeader} The first LOCATION header.
+   */
+  get LOCATION0() {
+    return this._getFirstHeaderNamed('LOCATION');
+  }
+
+  /**
+   * Gets the NT headers, if any.
+   *
+   * @returns {Array} The NT headers.
+   */
+  get NT() {
+    return this._getHeadersNamed('NT');
+  }
+
+  /**
+   * Gets the first NT header, if any.
+   *
+   * @returns {DiscoveryMessageHeader} The NT header.
+   */
+  get NT0() {
+    return this._getFirstHeaderNamed('NT');
+  }
+
+  /**
+   * Gets the NTS headers, if any.
+   *
+   * @returns {Array} The NTS headers.
+   */
+  get NTS() {
+    return this._getHeadersNamed('NTS');
+  }
+
+  /**
+   * Gets the first NTS header, if any.
+   *
+   * @returns {DiscoveryMessageHeader} The NTS header.
+   */
+  get NTS0() {
+    return this._getFirstHeaderNamed('NTS');
+  }
+
+  /**
    * Gets the ST headers, if any.
    *
    * @returns {Array} The ST headers.
@@ -70,8 +170,49 @@ class DiscoveryMessage {
   }
 
   /**
+   * Gets the first ST header, if any.
+   *
+   * @returns {DiscoveryMessageHeader} The ST header.
+   */
+  get ST0() {
+    return this._getFirstHeaderNamed('ST');
+  }
+
+  /**
+   * Gets the USN headers, if any.
+   *
+   * @returns {Array} The USN headers.
+   */
+  get USN() {
+    return this._getHeadersNamed('USN');
+  }
+
+  /**
+   * Gets the first USN header, if any.
+   *
+   * @returns {DiscoveryMessageHeader} The USN header.
+   */
+  get USN0() {
+    return this._getFirstHeaderNamed('USN');
+  }
+
+  /**
+   * Gets the first header by name, if any.
+   *
+   * @param name {String} The name.
+   * @returns {DiscoveryMessageHeader} The header or undefined.
+   * @private
+   */
+  _getFirstHeaderNamed(name) {
+    return this.headers.find((header) => {
+      return header.header.toUpperCase() == name.toUpperCase();
+    });
+  }
+
+  /**
    * Gets headers by name, if any.
    *
+   * @param name {String} The name.
    * @returns {Array} The headers.
    * @private
    */
@@ -82,7 +223,8 @@ class DiscoveryMessage {
   }
 
   /**
-   * Factory that parses a string.
+   * Factory that parses a string that is the full discovery message,
+   * both status line and headers.
    *
    * @param remoteAddress {Address} The address from which the message was received.
    * @param timestamp {Date} The instant at which the message was received.
@@ -96,16 +238,17 @@ class DiscoveryMessage {
       lines = msg.split('\r\n');
     }
     let statusLine = DiscoveryMessage._parseStatusLine(lines[0]);
-    let headers = lines.slice(1).map(DiscoveryMessage._parseHeaderLine);
+    let headers = lines.slice(1).filter((line) => {return line.length > 0;}).map(DiscoveryMessage._parseHeaderLine);
     return new DiscoveryMessage(remoteAddress, timestamp, statusLine, headers);
   }
 
   /**
-   * Parses a header line.
+   * Parses a header with no validation.
    *
    * @param line {String} The header line.
    * @returns {DiscoveryMessageHeader} The header.
    * @static
+   * @private
    */
   static _parseHeaderLine(line) {
     let idx = line.indexOf(':');
@@ -116,11 +259,12 @@ class DiscoveryMessage {
   }
 
   /**
-   * Parses a status line into parts.
+   * Parses a status line into parts with no validation.
    *
    * @param line {String} The status line.
    * @returns {Array} The parts.
    * @static
+   * @private
    */
   static _parseStatusLine(line) {
     return line.split(/\s+/);
@@ -130,6 +274,16 @@ class DiscoveryMessage {
 
 /**
  * A store of discovery messages.
+ *
+ * A device sends three types of discovery message:
+ *   Root device discovery messages
+ *   Embedded device discovery messages
+ *   Service discovery messages
+ *
+ * These are distinguished by the values of the NT and USN headers.
+ * 
+ * N.B. In practice, the LOCATION header value is typically duplicated
+ * across the service messages from a device.
  */
 class DiscoveryMessageStore {
   /**
@@ -142,9 +296,14 @@ class DiscoveryMessageStore {
   /**
    * Gets the messages.
    *
+   * The returned array is the message store contents; no
+   * defensive copy is made.  You control your own fate.
+   *
    * @returns {Array} The messages.
    */
   get messages() {
+    // Take the opportunity to filter out expired messages
+    this._messages = this._messages.filter((message) => {return !message.isExpired;});
     return this._messages;
   }
 
@@ -158,23 +317,46 @@ class DiscoveryMessageStore {
   /**
    * Updates the store with a message.
    *
-   * TODO: rather than always adding, update an existing
-   * message for the service if it is already in the store.
-   *
    * @param discoveryMessage {DiscoveryMessage} The message.
    */
   update(discoveryMessage) {
-    this._messages.push(discoveryMessage);
+    let usn0 = discoveryMessage.USN0;
+    let location0 = discoveryMessage.LOCATION0;
+    let nts0 = discoveryMessage.NTS0;
+
+    if (!(usn0 && location0 && (discoveryMessage.isSearchResponse || nts0))) {
+      console.log(`Discovery message missing required header: ${util.inspect(discoveryMessage)}`);
+      return;
+    }
+    let existingIndex = this._messages.findIndex((message) => {
+      return message.USN0.value == usn0.value;
+    });
+    if (existingIndex == -1) {
+      if (discoveryMessage.isSearchRespone || nts0 != 'ssdp:byebye') {
+        this._messages.push(discoveryMessage);
+      } else {
+        // do nothing with a byebye if the USN is not in the store
+      }
+    } else {
+      if (discoveryMessage.isSearchResponse || nts0 != 'ssdp:byebye') {
+        this._messages[existingIndex] = discoveryMessage;
+      } else {
+        this._messages.splice(existingIndex, 1);
+      }
+    }
   }
 
   /**
-   * Finds messages in the store by the value of the ST header.
+   * Finds messages in the store by the value of the ST header, which
+   * specifies the service type for messages in response to a search.
+   * Announcement messages do not have an ST header, so this is an
+   * unreliable way to find something.
    *
    * @param ST {String} The value of the ST header.
    * @returns {Array} The messages in the store.
    */
   findByST(ST) {
-    return this._messages.filter((discoveryMessage) => {
+    return this.messages.filter((discoveryMessage) => {
       return discoveryMessage.ST.some((st) => {
         return st.value == ST;
       });
@@ -185,9 +367,20 @@ class DiscoveryMessageStore {
 /**
  * Manages discovery interaction with devices, maintaining
  * a store of discovery messages.
+ *
+ * TODO: re-factor this into a base service that emits
+ * an event for each message received and a service on
+ * top of that which maintains the store of discovery messages.
  */
 class DiscoveryService {
-  constructor() {
+  /**
+   * Creates the service.  The service does nothing until it
+   * is started.
+   *
+   * @param enableLog {boolean} Whether to enable console logging.
+   */
+  constructor(enableLog) {
+    this._enableLog = enableLog;
     this._messageStore = new DiscoveryMessageStore();
     this._socket = null;
   }
@@ -223,9 +416,10 @@ class DiscoveryService {
   /**
    * Sends a discovery search message.
    *
+   * @param searchTarget {String} The thing(s) to search for, ssdp:all for all.
    * @param callback {Function} Called when send is complete.
    */
-  startSearch(callback) {
+  startSearch(searchTarget, callback) {
     if (this._socket === null) {
       throw new Error('Server not started');
     }
@@ -234,7 +428,7 @@ class DiscoveryService {
       `HOST: ${DISCOVERY_MULTICAST_ADDRESS}:${DISCOVERY_PORT}\r\n` +
       'MAN: \"ssdp:discover\"\r\n' +
       'MX: 2\r\n' +
-      'ST: ssdp:all\r\n' +
+      `ST: ${searchTarget}\r\n` +
       `USER-AGENT: ${os.platform()}/${os.release()} UPnP/1.1 ${PRODUCT}/${PRODUCT_VERSION}\r\n` +
       '\r\n';
     //console.log(`sending search:\n${searchRequest}`);
@@ -244,17 +438,21 @@ class DiscoveryService {
   }
 
   /**
-   * Starts the discovery service.
+   * Starts the discovery service.  This should only be called once.
    *
    * @param callback {Function} Called when the server starts listening.
    */
   startService(callback) {
+    // TODO: listen on two sockets.  One is bound to only the multicast
+    // address, added to the mutlicast group and only accepts NOTIFY
+    // messages.  The other is bound to all interfaces and only accepts
+    // HTTP/1.1 response messages.
     if (this._socket !== null) {
       throw new Error('Server already started');
     }
 
     this._socket = dgram.createSocket('udp4');
-    
+
     this._socket.on('error', (err) => {
       //console.log(`discovery server error:\n${err.stack}`);
       callback(err, null);
@@ -264,20 +462,27 @@ class DiscoveryService {
     this._socket.on('listening', () => {
       let address = this._socket.address();
       //console.log(`discovery server listening ${address.address}:${address.port}`);
+      this._socket.addMembership(DISCOVERY_MULTICAST_ADDRESS);
       callback(null, address);
     });
 
     this._socket.on('message', (msg, remoteAddress) => {
       let ts = new Date();
-      console.log(`message from ${remoteAddress.address}:${remoteAddress.port} at ${ts}`);
+      if (this.enableLog) {
+        console.log(`message from ${remoteAddress.address}:${remoteAddress.port} at ${ts}`);
+      }
       //console.log(msg);
       //console.log(util.inspect(msg));
       let discoveryMessage = DiscoveryMessage.parseString(remoteAddress, ts, msg.toString('UTF-8'));
-      //console.log(discoveryMessage);
-      this._messageStore.update(discoveryMessage);
+      if (this._enableLog) {
+        console.log(discoveryMessage);
+      }
+      if (discoveryMessage.isSearchResponse || discoveryMessage.isNotify) {
+        this._messageStore.update(discoveryMessage);
+      }
     });
-    
-    this._socket.bind(1900/*, '239.255.255.250'*/);
+
+    this._socket.bind(1900);
   }
 }
 

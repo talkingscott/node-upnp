@@ -7,7 +7,7 @@
 
 const util = require('util');
 const DiscoveryService = require('./discovery').DiscoveryService;
-const findServices = require('./description').findServices;
+const findDeviceServices = require('./description').findDeviceServices;
 
 const discoveryService = new DiscoveryService();
 discoveryService.startService((err, address) => {
@@ -16,7 +16,7 @@ discoveryService.startService((err, address) => {
   } else {
     console.log(`discovery service listening ${address.address}:${address.port}`);
     console.log('start search in 5 seconds');
-    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, (err) => {
+    setTimeout(discoveryService.startSearch.bind(discoveryService), 5000, 'ssdp:all', (err) => {
       if (err) {
         console.log(`search error:\n${err.stack}`);
       } else {
@@ -25,7 +25,7 @@ discoveryService.startService((err, address) => {
         setTimeout(() => {
           console.log('content of discovery message store');
           console.log(util.inspect(discoveryService.messageStore, {depth: 5}));
-          findServices(discoveryService, 'urn:schemas-upnp-org:device:MediaServer:1', 'urn:schemas-upnp-org:service:ContentDirectory:1', (errors, services) => {
+          findDeviceServices(discoveryService, 'urn:schemas-upnp-org:device:MediaServer:1', 'urn:schemas-upnp-org:service:ContentDirectory:1', (errors, services) => {
             errors.forEach((error) => {
               console.log(util.inspect(error, {depth:8}));
             });
