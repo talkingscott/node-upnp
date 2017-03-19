@@ -3,6 +3,7 @@
  *
  * Based on http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
  */
+
 'use strict';
 
 const dgram = require('dgram');
@@ -23,11 +24,11 @@ class DiscoveryMessageHeader {
     this._header = header;
     this._value = value;
   }
-  
+
   get header() {
     return this._header;
   }
-  
+
   get value() {
     return this._value;
   }
@@ -72,38 +73,38 @@ class DiscoveryMessage {
   }
 
   get isNotify() {
-    return this._statusLine[0] == 'NOTIFY';
+    return this._statusLine[0] === 'NOTIFY';
   }
 
   get isSearchResponse() {
-    return this._statusLine[0] == 'HTTP/1.1';
+    return this._statusLine[0] === 'HTTP/1.1';
   }
 
   /**
    * Gets whether this message is expired.
    */
   get isExpired() {
-    let cacheControl = this._getFirstHeaderNamed('CACHE-CONTROL');
+    const cacheControl = this._getFirstHeaderNamed('CACHE-CONTROL');
     if (!cacheControl) {
       return false;
     }
-    let idx = cacheControl.value.indexOf('max-age=');
+    const idx = cacheControl.value.indexOf('max-age=');
     if (idx === -1) {
       return false;
     }
-    let maxAge = parseInt(cacheControl.value.substring(idx + 'max-age='.length));
-    //console.log(`maxAge is ${maxAge} from ${util.inspect(cacheControl)}`);
+    const maxAge = parseInt(cacheControl.value.substring(idx + 'max-age='.length), 10);
+    // console.log(`maxAge is ${maxAge} from ${util.inspect(cacheControl)}`);
 
-    let date = this._getFirstHeaderNamed('DATE');
+    const date = this._getFirstHeaderNamed('DATE');
     let messageDate;
     if (!date) {
       messageDate = this.timestamp;
     } else {
       messageDate = new Date(date.value);
     }
-    //console.log(`messageDate is ${messageDate} from ${util.inspect(date)}`);
+    // console.log(`messageDate is ${messageDate} from ${util.inspect(date)}`);
 
-    return (messageDate.getTime() + maxAge*1000) < Date.now();
+    return (messageDate.getTime() + (maxAge * 1000)) < Date.now();
   }
 
   /**
@@ -205,7 +206,7 @@ class DiscoveryMessage {
    */
   _getFirstHeaderNamed(name) {
     return this.headers.find((header) => {
-      return header.header.toUpperCase() == name.toUpperCase();
+      return header.header.toUpperCase() === name.toUpperCase();
     });
   }
 
@@ -218,7 +219,7 @@ class DiscoveryMessage {
    */
   _getHeadersNamed(name) {
     return this.headers.filter((header) => {
-      return header.header.toUpperCase() == name.toUpperCase();
+      return header.header.toUpperCase() === name.toUpperCase();
     });
   }
 
@@ -234,11 +235,12 @@ class DiscoveryMessage {
    */
   static parseString(remoteAddress, timestamp, msg) {
     let lines = msg.split('\r\n');
-    if (lines.length == 1) {
+    if (lines.length === 1) {
       lines = msg.split('\r\n');
     }
-    let statusLine = DiscoveryMessage._parseStatusLine(lines[0]);
-    let headers = lines.slice(1).filter((line) => {return line.length > 0;}).map(DiscoveryMessage._parseHeaderLine);
+    const statusLine = DiscoveryMessage._parseStatusLine(lines[0]);
+    const headers = lines.slice(1).filter((line) => { return line.length > 0; })
+        .map(DiscoveryMessage._parseHeaderLine);
     return new DiscoveryMessage(remoteAddress, timestamp, statusLine, headers);
   }
 
@@ -251,9 +253,9 @@ class DiscoveryMessage {
    * @private
    */
   static _parseHeaderLine(line) {
-    let idx = line.indexOf(':');
+    const idx = line.indexOf(':');
     if (idx >= 0) {
-      return new DiscoveryMessageHeader(line.substr(0, idx), line.substr(idx+1).trim());
+      return new DiscoveryMessageHeader(line.substr(0, idx), line.substr(idx + 1).trim());
     }
     return new DiscoveryMessageHeader(line, undefined);
   }
@@ -281,7 +283,7 @@ class DiscoveryMessage {
  *   Service discovery messages
  *
  * These are distinguished by the values of the NT and USN headers.
- * 
+ *
  * N.B. In practice, the LOCATION header value is typically duplicated
  * across the service messages from a device.
  */
@@ -303,7 +305,7 @@ class DiscoveryMessageStore {
    */
   get messages() {
     // Take the opportunity to filter out expired messages
-    this._messages = this._messages.filter((message) => {return !message.isExpired;});
+    this._messages = this._messages.filter((message) => { return !message.isExpired; });
     return this._messages;
   }
 
@@ -320,25 +322,25 @@ class DiscoveryMessageStore {
    * @param discoveryMessage {DiscoveryMessage} The message.
    */
   update(discoveryMessage) {
-    let usn0 = discoveryMessage.USN0;
-    let location0 = discoveryMessage.LOCATION0;
-    let nts0 = discoveryMessage.NTS0;
+    const usn0 = discoveryMessage.USN0;
+    const location0 = discoveryMessage.LOCATION0;
+    const nts0 = discoveryMessage.NTS0;
 
     if (!(usn0 && location0 && (discoveryMessage.isSearchResponse || nts0))) {
       console.log(`Discovery message missing required header: ${util.inspect(discoveryMessage)}`);
       return;
     }
-    let existingIndex = this._messages.findIndex((message) => {
-      return message.USN0.value == usn0.value;
+    const existingIndex = this._messages.findIndex((message) => {
+      return message.USN0.value === usn0.value;
     });
-    if (existingIndex == -1) {
-      if (discoveryMessage.isSearchRespone || nts0 != 'ssdp:byebye') {
+    if (existingIndex === -1) {
+      if (discoveryMessage.isSearchRespone || nts0 !== 'ssdp:byebye') {
         this._messages.push(discoveryMessage);
       } else {
         // do nothing with a byebye if the USN is not in the store
       }
     } else {
-      if (discoveryMessage.isSearchResponse || nts0 != 'ssdp:byebye') {
+      if (discoveryMessage.isSearchResponse || nts0 !== 'ssdp:byebye') {
         this._messages[existingIndex] = discoveryMessage;
       } else {
         this._messages.splice(existingIndex, 1);
@@ -358,7 +360,7 @@ class DiscoveryMessageStore {
   findByST(ST) {
     return this.messages.filter((discoveryMessage) => {
       return discoveryMessage.ST.some((st) => {
-        return st.value == ST;
+        return st.value === ST;
       });
     });
   }
@@ -404,7 +406,7 @@ class DiscoveryService {
    * @returns {Set} The locations from all discovery messages.
    */
   getLocations() {
-    let locations = new Set();
+    const locations = new Set();
     this.messageStore.messages.forEach((message) => {
       message.LOCATION.forEach((header) => {
         locations.add(header.value);
@@ -424,17 +426,18 @@ class DiscoveryService {
       throw new Error('Server not started');
     }
     this._messageStore.clear();
-    let searchRequest = 'M-SEARCH * HTTP/1.1\r\n' +
+    const searchRequest = 'M-SEARCH * HTTP/1.1\r\n' +
       `HOST: ${DISCOVERY_MULTICAST_ADDRESS}:${DISCOVERY_PORT}\r\n` +
-      'MAN: \"ssdp:discover\"\r\n' +
+      'MAN: "ssdp:discover"\r\n' +
       'MX: 2\r\n' +
       `ST: ${searchTarget}\r\n` +
       `USER-AGENT: ${os.platform()}/${os.release()} UPnP/1.1 ${PRODUCT}/${PRODUCT_VERSION}\r\n` +
       '\r\n';
-    //console.log(`sending search:\n${searchRequest}`);
-    this._socket.send(searchRequest, 0, searchRequest.length, DISCOVERY_PORT, DISCOVERY_MULTICAST_ADDRESS, (err) => {
-      callback(err);
-    });
+    // console.log(`sending search:\n${searchRequest}`);
+    this._socket.send(searchRequest, 0, searchRequest.length, DISCOVERY_PORT,
+        DISCOVERY_MULTICAST_ADDRESS, (err) => {
+          callback(err);
+        });
   }
 
   /**
@@ -454,26 +457,26 @@ class DiscoveryService {
     this._socket = dgram.createSocket('udp4');
 
     this._socket.on('error', (err) => {
-      //console.log(`discovery server error:\n${err.stack}`);
+      // console.log(`discovery server error:\n${err.stack}`);
       callback(err, null);
       this._socket.close();
     });
-    
+
     this._socket.on('listening', () => {
-      let address = this._socket.address();
-      //console.log(`discovery server listening ${address.address}:${address.port}`);
+      const address = this._socket.address();
+      // console.log(`discovery server listening ${address.address}:${address.port}`);
       this._socket.addMembership(DISCOVERY_MULTICAST_ADDRESS);
       callback(null, address);
     });
 
     this._socket.on('message', (msg, remoteAddress) => {
-      let ts = new Date();
-      if (this.enableLog) {
+      const ts = new Date();
+      if (this._enableLog) {
         console.log(`message from ${remoteAddress.address}:${remoteAddress.port} at ${ts}`);
       }
-      //console.log(msg);
-      //console.log(util.inspect(msg));
-      let discoveryMessage = DiscoveryMessage.parseString(remoteAddress, ts, msg.toString('UTF-8'));
+      // console.log(msg);
+      // console.log(util.inspect(msg));
+      const discoveryMessage = DiscoveryMessage.parseString(remoteAddress, ts, msg.toString('UTF-8'));
       if (this._enableLog) {
         console.log(discoveryMessage);
       }

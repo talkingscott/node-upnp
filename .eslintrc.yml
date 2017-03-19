@@ -1,0 +1,13 @@
+extends: airbnb
+plugins:
+  - react
+  - jsx-a11y
+  - import
+rules:
+  no-underscore-dangle: off
+  arrow-body-style: off
+  no-lonely-if: off
+  no-console: off
+  strict: off
+  object-shorthand: off
+  comma-dangle: off

@@ -6,6 +6,7 @@
  * http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf
  * http://www.upnp.org/specs/av/UPnP-av-ContentDirectory-v1-Service.pdf
  */
+
 'use strict';
 
 const util = require('util');

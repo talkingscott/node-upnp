@@ -1,6 +1,5 @@
 'use strict';
 
-const util = require('util');
 const DOMParser = require('xmldom').DOMParser;
 
 /**
@@ -17,12 +16,12 @@ const DOMParser = require('xmldom').DOMParser;
  * @returns {Object} A JavaScript object containing the same information.
  */
 function parseObjectFromElement(element) {
-  let children = element.childNodes;
+  const children = element.childNodes;
+  const obj = {};
   let elementCount = 0;
-  let obj = {};
   let txt = '';
-  for (var c = 0; c < children.length; c++) {
-    let child = children.item(c);
+  for (let c = 0; c < children.length; c += 1) {
+    const child = children.item(c);
     if (child.localName) {
       elementCount += 1;
       // TODO: either prefix or namespaceURI to disambiguate
@@ -42,7 +41,7 @@ function parseObjectFromElement(element) {
     if (txt) {
       obj.$ = txt;
     }
-    for (var a = 0; a < element.attributes.length; a++) {
+    for (let a = 0; a < element.attributes.length; a += 1) {
       // TODO: name has prefix
       obj[`@${element.attributes.item(a).name}`] = element.attributes.item(a).value;
     }
@@ -60,8 +59,8 @@ function parseObjectFromElement(element) {
  * @returns {Object} A JavaScript object containing the same information.
  */
 function parseObjectFromXml(xml) {
-  let doc = new DOMParser().parseFromString(xml, 'text/xml');
-  //console.log(util.inspect(doc.documentElement, {depth:6}));
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  // console.log(util.inspect(doc.documentElement, { depth: 8 }));
   return parseObjectFromElement(doc.documentElement);
 }
 

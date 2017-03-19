@@ -6,12 +6,26 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["UPnP", "DLNA"],
+  "keywords": [
+    "UPnP",
+    "DLNA"
+  ],
   "author": "talkingscott@gmail.com",
   "license": "ISC",
   "private": true,
   "dependencies": {
     "request": "^2.79.0",
     "xmldom": "^0.1.27"
+  },
+  "devDependencies": {
+    "eslint": "^3.18.0",
+    "eslint-config-airbnb": "^14.1.0",
+    "eslint-config-google": "^0.7.1",
+    "eslint-config-standard": "^7.1.0",
+    "eslint-plugin-import": "^2.2.0",
+    "eslint-plugin-jsx-a11y": "^4.0.0",
+    "eslint-plugin-promise": "^3.5.0",
+    "eslint-plugin-react": "^6.10.0",
+    "eslint-plugin-standard": "^2.1.1"
   }
 }
